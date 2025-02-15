@@ -152,25 +152,32 @@ const edit = async (req, res) => {
 
 const login = async (req, res) => {
     try {
-        const { username, password } = req.body;
-        // Find the user by username
-        const user = await User.findOne({ username, deleted: false }).populate({
+        const { email, password } = req.body;
+        // Find the user by email or username
+        const user = await User.findOne({
+            $or: [
+                { username: email },
+                { username: email.toLowerCase() }
+            ],
+            deleted: false
+        }).populate({
             path: 'roles'
         });
+        
         if (!user) {
-            res.status(401).json({ error: 'Authentication failed, invalid username' });
-            return;
+            return res.status(401).json({ error: 'Authentication failed, invalid email' });
         }
+        
         // Compare the provided password with the hashed password stored in the database
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch) {
-            res.status(401).json({ error: 'Authentication failed,password does not match' });
-            return;
+            return res.status(401).json({ error: 'Authentication failed, password does not match' });
         }
+        
         // Create a JWT token
-        const token = jwt.sign({ userId: user._id }, 'secret_key', { expiresIn: '1d' });
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret_key', { expiresIn: '1d' });
 
-        res.status(200).setHeader('Authorization', `Bearer${token}`).json({ token: token, user });
+        res.status(200).setHeader('Authorization', `Bearer ${token}`).json({ token: token, user });
     } catch (error) {
         res.status(500).json({ error: 'An error occurred' });
     }
